@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"image"
+	"image/color"
 	"image/draw"
 	"image/png"
 	"os"
@@ -62,24 +63,29 @@ func onReady() {
 		}
 	}()
 }
-
+func insideCircle(cx, cy, px, py, radius int) bool {
+	dx := float64(cx - px)
+	dy := float64(cy - py)
+	distance_squared := dx*dx + dy*dy
+	return distance_squared <= float64(radius*radius)
+}
 func addLabel(src image.Image, x, y int, label string) image.Image {
 	b := src.Bounds()
 	img := image.NewNRGBA(image.Rect(0, 0, b.Dx(), b.Dy()))
 	draw.Draw(img, img.Bounds(), src, b.Min, draw.Src)
 
-	// pixfont.DrawString(img, 10, 10, "Hello, World!", color.RGBA{0, 255, 255, 255})
+	col := color.RGBA{0xE9, 0x54, 0x20, 255}
 
-	// col := color.RGBA{200, 100, 0, 255}
-	// point := fixed.Point26_6{fixed.Int26_6(x * 64), fixed.Int26_6(y * 64)}
+	size := 12
 
-	// d := &font.Drawer{
-	// 	Dst:  img,
-	// 	Src:  image.NewUniform(col),
-	// 	Face: basicfont.Face7x13,
-	// 	Dot:  point,
-	// }
-	// d.DrawString(label)
+	for x := 32 - size; x < 32; x++ {
+		for y := 0; y < size; y++ {
+			if insideCircle(32-(size/2), size/2, x, y, size/2) {
+				img.Set(x, y, col)
+			}
+		}
+	}
+
 	return img
 }
 
