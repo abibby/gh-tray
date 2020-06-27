@@ -1,10 +1,14 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"fmt"
+	"io/ioutil"
 	"log"
-	"strings"
+	"os"
+	"path"
 	"time"
 
 	"github.com/google/go-github/v32/github"
@@ -13,23 +17,54 @@ import (
 
 var ghClient *github.Client
 
-func pass(key string) (string, error) {
-	result := shell("pass " + key)
-	if strings.HasPrefix("Error: ", result) {
-		return "", fmt.Errorf(result)
+func personalAccessToken() (string, error) {
+	d, err := os.UserConfigDir()
+	if err != nil {
+		return "", err
 	}
-	return result, nil
+	tokenFile := path.Join(d, "gh-tray/token")
+
+	b, err := ioutil.ReadFile(tokenFile)
+	if err != nil && !os.IsNotExist(err) {
+		return "", err
+	}
+
+	if b == nil {
+		err = xdgOpen("https://github.com/settings/tokens/new?description=gh-tray&scopes=notifications")
+		if err != nil {
+			return "", err
+		}
+		reader := bufio.NewReader(os.Stdin)
+		fmt.Print("Enter token: ")
+		b, err = reader.ReadBytes('\n')
+		if err != nil {
+			return "", err
+		}
+		b = bytes.Trim(b, " \t\n")
+
+		err = os.MkdirAll(path.Dir(tokenFile), 0755)
+		if err != nil {
+			return "", err
+		}
+
+		err = ioutil.WriteFile(tokenFile, b, 0644)
+		if err != nil {
+			return "", err
+		}
+
+	}
+
+	return string(b), nil
 }
 
 func getGHClient(ctx context.Context) *github.Client {
 	if ghClient == nil {
-		token, err := pass("github-token")
+		token, err := personalAccessToken()
 		if err != nil {
 			log.Printf("error getting github-token: %v\n", err)
+			os.Exit(1)
 		}
-		ts := oauth2.StaticTokenSource(
-			&oauth2.Token{AccessToken: token},
-		)
+		ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
 		tc := oauth2.NewClient(ctx, ts)
 
 		ghClient = github.NewClient(tc)

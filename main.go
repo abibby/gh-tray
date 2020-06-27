@@ -1,18 +1,17 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"image"
 	"image/color"
 	"image/draw"
-	"image/png"
-	"os"
-	"os/exec"
-	"strings"
 
 	"github.com/getlantern/systray"
 )
+
+//go:generate go run build/main.go icon.png
+//go:generate go run build/main.go icon-active.png
+var files map[string][]byte = map[string][]byte{}
 
 func try(err error) {
 	if err != nil {
@@ -24,15 +23,11 @@ func main() {
 }
 
 func setIcon(count int) {
-	f, err := os.Open("./icon.png")
-	try(err)
-	defer f.Close()
-	img, err := png.Decode(f)
-	try(err)
-	img = addLabel(img, 1, 1, "6")
-	b := bytes.NewBuffer([]byte{})
-	try(png.Encode(b, img))
-	systray.SetIcon(b.Bytes())
+	if count > 0 {
+		systray.SetIcon(files["icon-active.png"])
+	} else {
+		systray.SetIcon(files["icon.png"])
+	}
 }
 
 func onReady() {
@@ -43,25 +38,23 @@ func onReady() {
 
 	notificationsChan := ghNotificationsSub()
 
-	go func() {
-		for {
+	for {
 
-			select {
-			case <-mQuit.ClickedCh:
-				fmt.Println("Requesting quit")
-				systray.Quit()
-				fmt.Println("Finished quitting")
+		select {
+		case <-mQuit.ClickedCh:
+			fmt.Println("Requesting quit")
+			systray.Quit()
+			fmt.Println("Finished quitting")
 
-			case <-mOpen.ClickedCh:
-				shell("xdg-open 'https://github.com/notifications?query=is%3Aunread'")
+		case <-mOpen.ClickedCh:
+			xdgOpen("https://github.com/notifications?query=is%3Aunread")
 
-			case notifications := <-notificationsChan:
-				mOpen.SetTitle(fmt.Sprintf("%d notifications", len(notifications)))
-				// spew.Dump(notifications)
-				setIcon(len(notifications))
-			}
+		case notifications := <-notificationsChan:
+			mOpen.SetTitle(fmt.Sprintf("%d notifications", len(notifications)))
+			// spew.Dump(notifications)
+			setIcon(len(notifications))
 		}
-	}()
+	}
 }
 func insideCircle(cx, cy, px, py, radius int) bool {
 	dx := float64(cx - px)
@@ -91,11 +84,4 @@ func addLabel(src image.Image, x, y int, label string) image.Image {
 
 func onExit() {
 	// clean up here
-}
-
-func shell(cmd string) string {
-	b, _ := exec.Command("bash", "-c", cmd).Output()
-
-	lines := strings.Split(strings.TrimSpace(string(b)), "\n")
-	return lines[len(lines)-1]
 }
